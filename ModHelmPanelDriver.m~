@@ -71,10 +71,7 @@
         = buildBoundariesPanel(nPanel, npt, T, curveParam, isUnbounded);
     
 %% Display Info 
-    disp(['Number of Panels: ', num2str(nPanel)])
-    disp(['Number of Nodes: ', num2str(npt)])
-    disp(['Total Unknowns: ', num2str(nPoints)])
-    disp(['Domain Shape: ', curveParam.shape])
+
                
 % 
 % Plot domain
@@ -100,9 +97,6 @@
     M = 100;    % Build MxM grid
     [xBox, yBox, igrid, LGammaP] ...
                  = buildBoxPanel(M, nPanel, npt, w, z, dz, ds);
-    disp(['Arc Length of Boundary = ', num2str(sum(LGammaP))])
-    disp(' ')
-
     zBox = xBox + 1i*yBox;
     figure()
     mesh(xBox, yBox, igrid)
@@ -117,7 +111,8 @@
     
     
     [DLP, ~, ~] = dlpYukawaPanelMatrix(alpha, nPanel, npt, t, T, w, W,...
-                                       z, ds, Nz, kappa);
+                                         z, ds, Nz, kappa);
+                             
                              
     f = uExact(abs(z - zSing), alpha);
     f = -2*alpha^2*f;
@@ -142,7 +137,6 @@
                                       rho, ztarg(i));
     end
     disp(['Error on sample points = ', num2str(max(abs(uCalc - uE)))])
-    disp(' ')
     
 %% Evaluate Solution on Grid 
 %
@@ -171,7 +165,6 @@
     errBox = abs(uBox - uExactBox);
     
     disp(['Error on Grid = ', num2str(max(max(errBox)))])
-    disp(' ')
     
     figure()
     contourf(xBox, yBox, log10(errBox), 20)

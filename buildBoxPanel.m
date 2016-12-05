@@ -51,9 +51,6 @@ function [xBox, yBox, igrid, LGammaP] = ...
         i = (iPanel-1)*npt + (1: npt);
         LGammaP(iPanel) = sum(ds(i).*w);
     end
-    arcL = sum(LGammaP);
-    
-    disp(['Arc length = ', num2str(arcL)])
     
     dsTol = tolfac*max(LGammaP);
     
