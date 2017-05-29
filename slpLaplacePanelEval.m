@@ -1,5 +1,5 @@
 function [val] = slpLaplacePanelEval(nPanel, npt, w, z, ds, sigma, ...
-                                     zTarg, AV)
+                                     zTarg)
 % DLPLAPLACEPANELEVAL(nPanel, npt, w, z, Nz, ds, sigma, zTarg) 
 %  Evaluate the double layer potential with density sigma and the point
 %  zTarg using composite Gauss-Legendre.
@@ -20,20 +20,17 @@ function [val] = slpLaplacePanelEval(nPanel, npt, w, z, ds, sigma, ...
 %   zTarg:
 %       Target point
 %
-%   AV:
-%       Matrix to compute average density - used as regularization for
-%       SLP
 %
 % OUTPUTS:
 %   val:
 %       value of DLP
 
-    sigmaAv = AV*sigma;
-    val = sigmaAv(1);
+    val = 0;
     for jpanel = 1: nPanel
         j = (jpanel-1)*npt + (1: npt);
         dR = z(j) - zTarg;       
-        kernel = 0.5*log(abs(dR)).*ds(j)/pi; 
+%        kernel = 0.5*(log(abs(dR)) + 1).*ds(j)/pi; 
+        kernel = 0.5*(log(abs(dR)) ).*ds(j)/pi; 
         val = val + sum(w.*kernel.*sigma(j));
     end
 end

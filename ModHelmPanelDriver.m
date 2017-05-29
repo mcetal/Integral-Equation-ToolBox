@@ -97,9 +97,9 @@
 %% Build grid
 % Embed in Box and add a uniform grid
 %
-    M = 100;    % Build MxM grid
+    M = 200;    % Build MxM grid
     [xBox, yBox, igrid, LGammaP] ...
-                 = buildBoxPanel(M, nPanel, npt, w, z, dz, ds);
+                 = buildBoxPanel(M, nPanel, npt, w, z, dz, ds, kappa);
     disp(['Arc Length of Boundary = ', num2str(sum(LGammaP))])
     disp(' ')
 
@@ -159,12 +159,19 @@
 % Evaluate at near singular grid points
     
     NearSingular = find(igrid==2);
+    nPtInDomain = numel(inDomain) + numel(NearSingular);
+    disp(['Number of grid points in domain = ', ...
+          num2str(nPtInDomain)])
+    zDisMin = 1.d10;
     for index = NearSingular'
         zTarg = zBox(index);
-        
+        zmin = min(abs(z - zTarg));
+        zDisMin = min(zDisMin, zmin);
         uBox(index) = dlpYukawaPanelNSEval(alpha, nPanel, npt, w,   ...
                             z, zP, LGammaP, Nz, dz, ds, rho, zTarg);
     end
+    disp(['Minimum Distance between grid point and boundary: ', ...
+          num2str(zDisMin)])
     
     uExactBox = zeros(size(zBox));
     uExactBox(igrid>0) = uExact(abs(zBox(igrid>0) - zSing), alpha);
@@ -174,6 +181,16 @@
     disp(' ')
     
     figure()
+    subplot(1, 2, 1)
+    contourf(xBox, yBox, uBox, 20)
+    hold on
+    plot(real(z), imag(z), 'k', 'LineWidth', 2)
+    colorbar
+    xlabel('x')
+    ylabel('y')
+    title('Solution')
+    
+    subplot(1, 2, 2)
     contourf(xBox, yBox, log10(errBox), 20)
     hold on
     plot(real(z), imag(z), 'k', 'LineWidth', 2)

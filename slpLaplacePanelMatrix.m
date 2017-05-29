@@ -1,4 +1,4 @@
-function [SLP, M0, MS] = slpLaplacePanelMatrix(nPanel, npt, t, T, w, W, ...
+function SLP = slpLaplacePanelMatrix(nPanel, npt, t, T, w, W, ...
                                                z, ds)
 
 % SLPLAPLACEPANELMATRIX(alpha, nPanel, npt, T, w, W, z, ds, Nz, kappa) 
@@ -91,6 +91,7 @@ function [SLP, M0, MS] = slpLaplacePanelMatrix(nPanel, npt, t, T, w, W, ...
             j = (jPanel - 1)*npt + (1: npt);
             M0(itarg, j) = (Kernel(z(j), z(itarg)).*ds(j).*w)';
             M0(itarg, itarg) = 0;
+%            M0(itarg, itarg) = 0.5*ds(itarg)*w(index)/pi;
             
 %       correction            
             wCorrect = wCorrectDiag(index, :)';
@@ -144,7 +145,7 @@ end
 
 function [Kern] = Kernel(zSource, zTarget)
     dR = zSource - zTarget;
-    Kern = 0.5*log(abs(dR)) /pi;       
+    Kern = 0.5*(log(abs(dR))) /pi;       
 end
 
 function WfrakL = WfrakLinit(trans, scale, tfrak, npt)

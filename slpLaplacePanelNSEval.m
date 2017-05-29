@@ -1,5 +1,5 @@
 function [val] = slpLaplacePanelNSEval(nPanel, npt, w, z, zP,  LGammaP, ...
-                                       dz, Nz, ds, rho, zTarg, AV)
+                                       dz, Nz, ds, rho, zTarg)
 % SLPLAPLACEPANELNSEVAL(alpha, nPanel, npt, w, z,zP, Nz, dz, ds, rho, zTarg) 
 %  Evaluate the double layer potential with density rho and the point
 %  zTarg with product integration activated (i.e. zTarg is close to
@@ -28,9 +28,6 @@ function [val] = slpLaplacePanelNSEval(nPanel, npt, w, z, zP,  LGammaP, ...
 %       Double layer density
 %   zTarg:
 %       Target point
-%   AV:
-%       Matrix to compute average density - used as regularization for
-%       SLP
 % OUTPUTS:
 %   val:
 %       value of DLP
@@ -46,7 +43,7 @@ function [val] = slpLaplacePanelNSEval(nPanel, npt, w, z, zP,  LGammaP, ...
     [d2GammaP, iclose] = min(abs(zTarg - z));
     iPanel = floor((iclose-1)/npt) + 1; 
     
-    val = slpLaplacePanelEval(nPanel, npt, w, z, ds, rho, zTarg, AV);
+    val = slpLaplacePanelEval(nPanel, npt, w, z, ds, rho, zTarg);
     
     GL = 0.5/pi;
 

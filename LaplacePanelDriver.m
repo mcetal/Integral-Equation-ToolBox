@@ -34,12 +34,20 @@
 %% PDE
 %
 
-   uExact = @(z) real(z.^2);
+    zstar = 2.5 + 2.4*1i;
+    uExact = @(z) real(1./(z - zstar));
+    graduExact = @(z) conj(-1./(z-zstar).^2);
+%     uExact = @(z) real((z-zstar).^3);
+%     graduExact = @(z) conj(3*(z-zstar).^2);
+    
+% BVP
+    iDirichlet = true;
+    iSLP = true;   
    
    
 %% Construct Domain
 %
-    nPanel = 40;    % Number of Panels
+    nPanel = 100;    % Number of Panels
     npt = 16;       % Number of nodes; should be 16 or 32
     
     nPoints = npt * nPanel;
@@ -62,7 +70,7 @@
 %           for a star: [r dr nArms]
 %           for a star2: [ [k]; [ak] ]
 
-    curveParam(1) = struct('shape', 'circle', 'parameters', [1], ...
+    curveParam(1) = struct('shape', 'circle', 'parameters', [2], ...
                         'tiltAngle', 0, 'centre', 0);
 
     isUnbounded = false;
@@ -96,7 +104,7 @@
 %% Build grid
 % Embed in Box and add a uniform grid
 %
-    M = 100;    % Build MxM grid
+    M = 200;    % Build MxM grid
     [xBox, yBox, igrid, LGammaP] ...
                  = buildBoxPanel(M, nPanel, npt, w, z, dz, ds);
     disp(['Arc Length of Boundary = ', num2str(sum(LGammaP))])
@@ -113,25 +121,42 @@
     
 %% Integral Equation
 % Build system matrix and solve integral equation
-    
-    
-    DLP = dlpLaplacePanelMatrix(nPanel, npt, w, z, ds, Nz, kappa);
-    f = 2*uExact(z);
-    [SLP, M0, MS] = slpLaplacePanelMatrix(nPanel, npt, t, T, w, W, z, ds);
-    f = uExact(z);
+    [DH, SH, dsh] = Helsing;
+    SH = 0.5*SH;
 %
-% add in regularization for SLP
-    rowAV = 0.5*repmat(w, nPanel, 1).*ds/pi;
-    AV = repmat(rowAV', nPoints, 1);
-    SLP = SLP + AV;
+% Set BCs and get System Matrix according to BVP type
+    if iDirichlet && ~iSLP
+        disp('Dirichlet BVP using DLP')
+        f = 2*uExact(z);
+     	SysMat = dlpLaplacePanelMatrix(nPanel, npt, w, z, ds, Nz, kappa);
+    elseif iDirichlet && iSLP
+        disp('Dirichlet BVP using SLP')
+        f = uExact(z);
+        SysMat = slpLaplacePanelMatrix(nPanel, npt, t, T, w, W, z, ds);
+    else
+        disp('Neuman BVP')
+        f = -2*real(graduExact(z).*conj(Nz));
+        SysMat = DslpDnLaplacePanelMatrix(nPanel, npt, w, z, ds, Nz, ...
+                                          kappa, false);
+    end
+    disp(' ')
     
-    rho = SLP\f;
-    
+    rho = SysMat \ f;
+            
     figure()
     plot(t, rho)
     xlabel('t')
     ylabel('\rho')
     title('Layer Potential Density')
+    
+    rhoAv = 0;
+    for iPanel = 1: nPanel
+        i = (iPanel-1)*npt + (1: npt);
+        rhoAv = rhoAv + sum(0.5*rho(i).*w.*ds(i)/pi);
+    end
+    disp(['Average Density (should be zero if Neumann BVP) = ', ...
+         num2str(rhoAv)])
+    disp(' ')
     
     
 %% Error Check 
@@ -142,12 +167,21 @@
     uE = uExact(ztarg);
     uCalc = zeros(size(ztarg));
     for i = 1: length(ztarg)
-%         uCalc(i) = dlpLaplacePanelEval(nPanel, npt, w, z, Nz, ds, rho, ...
-%                                        ztarg(i));
-        uCalc(i) = slpLaplacePanelEval(nPanel, npt, w, z, ds, rho, ...
-                                       ztarg(i), AV);
+        if iDirichlet && ~iSLP
+            uCalc(i) = dlpLaplacePanelEval(nPanel, npt, w, z, Nz, ds, rho, ...
+                                           ztarg(i));
+        else
+            uCalc(i) = slpLaplacePanelEval(nPanel, npt, w, z, ds, rho, ...
+                                           ztarg(i));
+        end
     end
-    disp(['Error on sample points = ', num2str(max(abs(uCalc - uE)))])
+    if iDirichlet
+        disp(['Error on sample points = ', num2str(max(abs(uCalc - uE)))])
+    else
+        diff = uCalc - uE;
+        err = max(diff) - min(diff);
+        disp(['Error on sample points = ', num2str(abs(err))])
+    end
     disp(' ')
     
 %% Evaluate Solution on Grid 
@@ -157,8 +191,13 @@
     uBox = zeros(size(zBox));
     for index = inDomain'
         zTarg = zBox(index);
-        uBox(index) = slpLaplacePanelEval(nPanel, npt, w, z, ds, ...
-                                          rho, zTarg, AV);
+        if iDirichlet && ~iSLP
+            uBox(index) = dlpLaplacePanelEval(nPanel, npt, w, z, Nz, ...
+                                              ds, rho, zTarg);
+        else
+            uBox(index) = slpLaplacePanelEval(nPanel, npt, w, z, ds, ...
+                                              rho, zTarg);
+        end
     end
 
 %
@@ -167,16 +206,29 @@
     NearSingular = find(igrid==2);
     for index = NearSingular'
         zTarg = zBox(index);
+        if iDirichlet && ~iSLP
+            uBox(index) = dlpLaplacePanelNSEval(nPanel, npt, w, z, zP, ...
+                                      LGammaP, Nz, dz, ds, rho, zTarg);
+        else
+            uBox(index) = slpLaplacePanelNSEval(nPanel, npt, w, z, zP, ...
+                                         LGammaP, dz, Nz, ds, rho, zTarg);
+        end
         
-        uBox(index) = slpLaplacePanelNSEval(nPanel, npt, w, z, zP, ...
-                                     LGammaP, dz, Nz, ds, rho, zTarg, AV);
     end
     
     uExactBox = zeros(size(zBox));
     uExactBox(igrid > 0) = uExact(zBox(igrid > 0));
     errBox = abs(uBox - uExactBox);
     
-    disp(['Error on Grid = ', num2str(max(max(errBox)))])
+    if iDirichlet
+        disp(['Error on Grid = ', num2str(max(max(errBox)))])
+    else
+        err = max(max(errBox(igrid > 0))) - min(min(errBox(igrid > 0)));
+        disp(['Error on Grid = ', num2str(abs(err))])
+        constant = max(max(errBox));
+        errBox(igrid > 0) = errBox(igrid > 0) - constant;
+        errBox = abs(errBox);
+    end
     disp(' ')
     
     figure()

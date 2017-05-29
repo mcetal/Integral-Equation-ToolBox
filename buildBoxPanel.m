@@ -1,5 +1,5 @@
 function [xBox, yBox, igrid, LGammaP] = ...
-                    buildBoxPanel(M, nPanel, npt, w, z, dz, ds)
+                    buildBoxPanel(M, nPanel, npt, w, z, dz, ds, kappa)
 % BUILDBOXPANEL(M, nPanel, npt, w, z, dz, ds)
 % Embeds domain in a uniform MxM grid. Determines regular grid points - 
 % i.e. points in the domain where regular quadrature is fine, and near
@@ -89,17 +89,40 @@ function [xBox, yBox, igrid, LGammaP] = ...
         zGamma = z(zGammaBin == ij);
         dzGamma = dz(zGammaBin ==ij);
         
-%
+% %
+% %  Flag points in neighbouring bins that are too close
+%         for iBoxBin = (i-1) : (i+1)
+%             for jBoxBin = (j-1) : (j+1)
+%                 iCheck = find(zBoxBin == iBoxBin + 1i*jBoxBin);
+%                 for jPoint = iCheck'
+%                     [dis2Gamma, iGamma] = min(abs(zBox(jPoint) - zGamma));
+%                     if dis2Gamma < dsTol
+%                         vGamma = [real(dzGamma(iGamma)), ...
+%                                   imag(dzGamma(iGamma)), 0];
+%                         zP2Gamma = zGamma(iGamma) - zBox(jPoint);
+%                         vP2Gamma = [real(zP2Gamma), imag(zP2Gamma), 0];
+%                         orientCheckVec = cross(vP2Gamma, vGamma);
+%                         if orientCheckVec(3) > 0 && igrid(jPoint) ~= -2
+%                             igrid(jPoint) = 2;
+%                         else
+%                             igrid(jPoint) = -2;
+%                         end
+%                     end
+%                 end
+%              end
+%         end
+%     end
+% 
 %  Flag points in neighbouring bins that are too close
         for iBoxBin = (i-1) : (i+1)
             for jBoxBin = (j-1) : (j+1)
                 iCheck = find(zBoxBin == iBoxBin + 1i*jBoxBin);
-                for jPoint = iCheck';
-                    [dis2Gamma, iGamma] = min(abs(zBox(jPoint) - zGamma));
+                for jPoint = iCheck'
+                    [dis2Gamma, iGamma] = min(abs(zBox(jPoint) - z));
                     if dis2Gamma < dsTol
-                        vGamma = [real(dzGamma(iGamma)), ...
-                                  imag(dzGamma(iGamma)), 0];
-                        zP2Gamma = zGamma(iGamma) - zBox(jPoint);
+                        vGamma = [real(dz(iGamma)), ...
+                                  imag(dz(iGamma)), 0];
+                        zP2Gamma = z(iGamma) - zBox(jPoint);
                         vP2Gamma = [real(zP2Gamma), imag(zP2Gamma), 0];
                         orientCheckVec = cross(vP2Gamma, vGamma);
                         if orientCheckVec(3) > 0 && igrid(jPoint) ~= -2
