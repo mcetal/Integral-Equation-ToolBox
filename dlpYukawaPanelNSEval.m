@@ -1,6 +1,7 @@
-function [val] = dlpYukawaPanelNSEval(alpha, nPanel, npt, w, z, zP,  ...
-                                      LGammaP, Nz, dz, ds, rho, zTarg)
-% DLPYUKAWAPANELNSEVAL(alpha, nPanel, npt, w, z,zP, Nz, dz, ds, rho, zTarg) 
+function [val] = dlpYukawaPanelNSEval(alpha, nPanel, npt, nBody, w, z,  ...
+                                      zP, LGammaP, Nz, dz, ds, rho, ...
+                                      zTarg, iTarg)
+% DLPYUKAWAPANELNSEVAL(alpha, nPanel, nBody, npt, w, z,zP, Nz, dz, ds, rho, zTarg, iTarg) 
 %  Evaluate the double layer potential with density rho and the point
 %  zTarg with product integration activated (i.e. zTarg is close to
 %  source). See section 6 of Helsing & Holst (2015)
@@ -12,6 +13,8 @@ function [val] = dlpYukawaPanelNSEval(alpha, nPanel, npt, w, z, zP,  ...
 %       Number of panels
 %   npt:
 %       Number of nodes per panel 
+%   nBody:
+%       Number of component curves
 %   w:
 %       Regular quadrature weights
 %   z:
@@ -30,6 +33,8 @@ function [val] = dlpYukawaPanelNSEval(alpha, nPanel, npt, w, z, zP,  ...
 %       Double layer density
 %   zTarg:
 %       Target point
+%   iTarg:
+%       Component curve point is closest to
 %
 % OUTPUTS:
 %   val:
@@ -43,25 +48,27 @@ function [val] = dlpYukawaPanelNSEval(alpha, nPanel, npt, w, z, zP,  ...
 
 %
 % Find closest panel
-    [d2GammaP, iclose] = min(abs(zTarg - z));
+    [d2GammaP, iclose] = min(abs(zTarg - z(:, iTarg)));
     iPanel = floor((iclose-1)/npt) + 1; 
     
-    val = dlpYukawaPanelEval(alpha, nPanel, npt, w, z, Nz, ds, rho, zTarg);
+    val = dlpYukawaPanelEval(alpha, nPanel, npt, nBody, w, z, Nz, ds, ...
+                             rho, zTarg);
     
 %
 % Gamma_p
-    dstol = tolfac*LGammaP(iPanel);
+    dstol = tolfac*LGammaP(iPanel, iTarg);
     if d2GammaP < dstol
         j = (iPanel-1)*npt + (1:npt);
-        za = zP(iPanel);
-        zb = zP(iPanel+1);
-        rpwj = w.*dz(j);
+        za = zP(iPanel, iTarg);
+        zb = zP(iPanel+1, iTarg);
+        rpwj = w.*dz(j, iTarg);
     
-        [wcorrL, wcmpC] = wLCinit(za, zb, zTarg, z(j), Nz(j), rpwj, npt);
+        [wcorrL, wcmpC] = wLCinit(za, zb, zTarg, z(j, iTarg), ...
+                                  Nz(j, iTarg), rpwj, npt, iTarg);
     
-        dval1 = sum(GLogNS(alpha, z(j), zTarg, Nz(j)).*rho(j)...
-                    .*ds(j).*w.*wcorrL);
-        dval2 = - sum(rho(j).*wcmpC)/(2*pi*alpha^2);
+        dval1 = sum(GLogNS(alpha, z(j, iTarg), zTarg, Nz(j, iTarg))...
+                    .*rho(j, iTarg).*ds(j, iTarg).*w.*wcorrL);
+        dval2 = - sum(rho(j, iTarg).*wcmpC)/(2*pi*alpha^2);
         val = val + dval1 + dval2;
     end
 %
@@ -71,39 +78,41 @@ function [val] = dlpYukawaPanelNSEval(alpha, nPanel, npt, w, z, zP,  ...
         jPanel = nPanel;
     end
     j = (jPanel-1)*npt + (1:npt);
-    d2GammaP = min(abs(zTarg - z(j)));
-    dstol = tolfac*LGammaP(jPanel);
+    d2GammaP = min(abs(zTarg - z(j, iTarg)));
+    dstol = tolfac*LGammaP(jPanel, iTarg);
     if d2GammaP < dstol
-        za = zP(jPanel);
-        zb = zP(jPanel+1);
-        rpwj = w.*dz(j);
+        za = zP(jPanel, iTarg);
+        zb = zP(jPanel+1, iTarg);
+        rpwj = w.*dz(j, iTarg);
     
-        [wcorrL, wcmpC] = wLCinit(za, zb, zTarg, z(j), Nz(j), rpwj, npt);
+        [wcorrL, wcmpC] = wLCinit(za, zb, zTarg, z(j, iTarg), ...
+                                  Nz(j, iTarg), rpwj, npt, iTarg);
     
-        dval1 = sum(GLogNS(alpha, z(j), zTarg, Nz(j)).*rho(j)...
-                    .*ds(j).*w.*wcorrL);
-        dval2 = - sum(rho(j).*wcmpC)/(2*pi*alpha^2);
+        dval1 = sum(GLogNS(alpha, z(j, iTarg), zTarg, Nz(j, iTarg))...
+                    .*rho(j, iTarg).*ds(j, iTarg).*w.*wcorrL);
+        dval2 = - sum(rho(j, iTarg).*wcmpC)/(2*pi*alpha^2);
         val = val + dval1 + dval2;
     end
 %
 % Gamma_p+1
     jPanel = iPanel+1;
-    if jPanel == nPanel + 1;
+    if jPanel == nPanel + 1
         jPanel = 1;
     end
     j = (jPanel-1)*npt + (1:npt);
-    d2GammaP = min(abs(zTarg - z(j)));
-    dstol = tolfac*LGammaP(jPanel);
+    d2GammaP = min(abs(zTarg - z(j, iTarg)));
+    dstol = tolfac*LGammaP(jPanel, iTarg);
     if d2GammaP < dstol
-        za = zP(jPanel);
-        zb = zP(jPanel+1);
-        rpwj = w.*dz(j);
+        za = zP(jPanel, iTarg);
+        zb = zP(jPanel+1, iTarg);
+        rpwj = w.*dz(j, iTarg);
     
-        [wcorrL, wcmpC] = wLCinit(za, zb, zTarg, z(j), Nz(j), rpwj, npt);
+        [wcorrL, wcmpC] = wLCinit(za, zb, zTarg, z(j, iTarg), ...
+                                  Nz(j, iTarg), rpwj, npt, iTarg);
     
-        dval1 = sum(GLogNS(alpha, z(j), zTarg, Nz(j)).*rho(j)...
-                    .*ds(j).*w.*wcorrL);
-        dval2 = - sum(rho(j).*wcmpC)/(2*pi*alpha^2);
+        dval1 = sum(GLogNS(alpha, z(j, iTarg), zTarg, Nz(j, iTarg))...
+                    .*rho(j, iTarg).*ds(j, iTarg).*w.*wcorrL);
+        dval2 = - sum(rho(j, iTarg).*wcmpC)/(2*pi*alpha^2);
         val = val + dval1 + dval2;
     end
     
@@ -116,7 +125,7 @@ function [GL] = GLogNS(alpha, zSource, zTarget, Nz)
     GL = -GL/(2*alpha^2);
 end
 
-function [wcorrL,wcmpC, A] = wLCinit(ra, rb, r, rj, nuj, rpwj, npt)
+function [wcorrL,wcmpC, A] = wLCinit(ra, rb, r, rj, nuj, rpwj, npt, iBody)
 % See appendix B, Helsing & Holst
 % *** ztgtr is target vector in transformed plane ***
     dr = (rb-ra)/2;
@@ -128,9 +137,12 @@ function [wcorrL,wcmpC, A] = wLCinit(ra, rb, r, rj, nuj, rpwj, npt)
     c=(1-(-1).^(1:npt))./(1:npt);
     p(1) = log(1 - rtr) - log(-1 - rtr);
     p1 = log(1 - rtr) + log(-1 - rtr);
-    if imag(rtr) < 0 && abs(real(rtr)) < 1
+    if imag(rtr) < 0 && abs(real(rtr)) < 1 && iBody == 1
         p(1) = p(1) + 2*1i*pi;
         p1 = p1 - 2*1i*pi;
+    elseif imag(rtr) > 0 && abs(real(rtr)) < 1 &&iBody > 1
+        p(1) = p(1) - 2*1i*pi;
+        p1 = p1 + 2*1i*pi;
     end
     for k = 1:npt
         p(k+1) = rtr*p(k)+c(k);

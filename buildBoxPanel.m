@@ -1,10 +1,12 @@
 function [xBox, yBox, igrid, LGammaP] = ...
-                    buildBoxPanel(M, nPanel, npt, w, z, dz, ds, kappa)
+                 buildBoxPanel(M, nPanel, npt, nBody, w, z, dz, ds, kappa)
 % BUILDBOXPANEL(M, nPanel, npt, w, z, dz, ds)
 % Embeds domain in a uniform MxM grid. Determines regular grid points - 
 % i.e. points in the domain where regular quadrature is fine, and near
 % singular grid points - points near the boundary where specialized
 % quadrature is needed.
+%
+% Bounded domains only right now
 %
 % INPUTS:
 %   M:
@@ -46,10 +48,12 @@ function [xBox, yBox, igrid, LGammaP] = ...
     
     dsMax = 0;
     arcL = 0;
-    LGammaP = zeros(nPanel, 1);
-    for iPanel = 1: nPanel
-        i = (iPanel-1)*npt + (1: npt);
-        LGammaP(iPanel) = sum(ds(i).*w);
+    LGammaP = zeros(nPanel, nBody);
+    for kBody = 1: nBody
+        for iPanel = 1: nPanel
+            i = (iPanel-1)*npt + (1: npt);
+            LGammaP(iPanel, kBody) = sum(ds(i, kBody).*w);
+        end
     end
     
     dsTol = tolfac*max(LGammaP);
@@ -57,10 +61,10 @@ function [xBox, yBox, igrid, LGammaP] = ...
 %%
 % Embed domain in regular grid
     igrid = zeros(M, M);
-    x0 = min(real(z));
-    y0 = min(imag(z));
-    xMax = max(real(z));
-    yMax = max(imag(z));
+    x0 = min(min(real(z)));
+    y0 = min(min(imag(z)));
+    xMax = max(max(real(z)));
+    yMax = max(max(imag(z)));
     LBox = max(xMax - x0, yMax - y0);
     
     [xBox, yBox] = meshgrid(linspace(x0, x0+LBox, M), ...
@@ -70,7 +74,7 @@ function [xBox, yBox, igrid, LGammaP] = ...
 
 %%
 % Bin sort grid and flag points that are close
-    MBin = floor(LBox/dsTol);
+    MBin = floor(LBox/max(dsTol));
 %
 %  shift and scale so all points on box [0 MBin] x [0 MBin]
     zBoxBin = floor((zBox - z0) * MBin/LBox);
@@ -86,8 +90,6 @@ function [xBox, yBox, igrid, LGammaP] = ...
         ij = GammaBinIndex(iBin);
         i = real(ij);
         j = imag(ij);
-        zGamma = z(zGammaBin == ij);
-        dzGamma = dz(zGammaBin ==ij);
         
 % %
 % %  Flag points in neighbouring bins that are too close
@@ -119,16 +121,19 @@ function [xBox, yBox, igrid, LGammaP] = ...
                 iCheck = find(zBoxBin == iBoxBin + 1i*jBoxBin);
                 for jPoint = iCheck'
                     [dis2Gamma, iGamma] = min(abs(zBox(jPoint) - z));
-                    if dis2Gamma < dsTol
-                        vGamma = [real(dz(iGamma)), ...
-                                  imag(dz(iGamma)), 0];
-                        zP2Gamma = z(iGamma) - zBox(jPoint);
-                        vP2Gamma = [real(zP2Gamma), imag(zP2Gamma), 0];
-                        orientCheckVec = cross(vP2Gamma, vGamma);
-                        if orientCheckVec(3) > 0 && igrid(jPoint) ~= -2
-                            igrid(jPoint) = 2;
-                        else
-                            igrid(jPoint) = -2;
+                    for kBody = 1: nBody
+                        if dis2Gamma(kBody) < dsTol(kBody)
+                            vGamma = [real(dz(iGamma(kBody), kBody)), ...
+                                  imag(dz(iGamma(kBody), kBody)), 0];
+                            zP2Gamma = z(iGamma(kBody), kBody) - zBox(jPoint);
+                            vP2Gamma = [real(zP2Gamma), imag(zP2Gamma), 0];
+                            orientCheckVec = cross(vP2Gamma, vGamma);
+                            if orientCheckVec(3) > 0 && igrid(jPoint) ~= -2
+%                                igrid(jPoint) = 2;
+                                igrid(jPoint) = kBody + 1;
+                            else
+                                igrid(jPoint) = -2;
+                            end
                         end
                     end
                 end
@@ -144,10 +149,12 @@ function [xBox, yBox, igrid, LGammaP] = ...
     for index = iUnflagged'
         zPoint = zBox(index);
         cauchy = 0;
-        for iPanel = 1: nPanel
-            i = (iPanel-1)*npt + (1: npt);
-            integrand = dz(i)./(z(i) - zPoint);
-            cauchy = cauchy + sum(integrand.*w)/(2*pi*1i);
+        for kBody = 1: nBody
+            for iPanel = 1: nPanel
+                i = (iPanel-1)*npt + (1: npt);
+                integrand = dz(i, kBody)./(z(i, kBody) - zPoint);
+                cauchy = cauchy + sum(integrand.*w)/(2*pi*1i);
+            end
         end
         if abs(cauchy - 1) < tol
             igrid(index) = 1;

@@ -1,4 +1,4 @@
-function [DLP, M0, MS] = dlpYukawaPanelMatrix(alpha, nPanel, npt,   ...
+function [DLP, M0, MS] = dlpYukawaPanelMatrix(alpha, nPanel, npt, nBody,...
                                               t, T, w, W, z, ds, Nz, kappa)
 % DLPYUKAWAPANELMATRIX(alpha, nPanel, npt, T, w, W, z, ds, Nz, kappa) 
 %  Constructs system matrix for Fredholm IE for the Dirichlet Modified 
@@ -12,6 +12,8 @@ function [DLP, M0, MS] = dlpYukawaPanelMatrix(alpha, nPanel, npt,   ...
 %       Number of panels
 %   npt:
 %       Number of nodes per panel 
+%   nBody:
+%       Number of component curves in domain
 %   t:
 %       Parameter value at nodes
 %   T:
@@ -68,91 +70,128 @@ function [DLP, M0, MS] = dlpYukawaPanelMatrix(alpha, nPanel, npt,   ...
     
 %
 % Construct system matrix
-    M0 = zeros(npts, npts);
-    MS = zeros(npts, npts);
+    M0 = zeros(npts*nBody, npts*nBody);
+    MS = zeros(npts*nBody, npts*nBody);
     
-    for iPanel = 1: nPanel
-        iPm1 = mod(iPanel - 2, nPanel) + 1;
-        iPp1 = mod(iPanel, nPanel) + 1;
-        i = (iPanel - 1)*npt + (1: npt);
-        
-        G0Diag = 0.5*ds(i).*w.*kappa(i)/pi;
-        
-        for index = 1: npt
-            itarg = (iPanel - 1)*npt + index;
+    for iBody = 1: nBody
+        for iPanel = 1: nPanel
+            i = (iPanel - 1)*npt + (1: npt);
+            for jBody = 1: nBody
+                if iBody == jBody
+                    G0Diag = 0.5*ds(i, iBody).*w.*kappa(i, iBody)/pi;
+                    iPm1 = mod(iPanel - 2, nPanel) + 1;
+                    iPp1 = mod(iPanel, nPanel) + 1;
+                    for index = 1: npt
+                        itarg = (iPanel - 1)*npt + index;
             
 %
 % regular quadrature for distant panels
-            for jp = 1: nPanel - 3;
-                jPanel = mod(iPp1 + jp -1, nPanel) + 1;
+                        for jp = 1: nPanel - 3
+                            jPanel = mod(iPp1 + jp -1, nPanel) + 1;
 %            disp(['    jPanel = ', num2str(jPanel)])
-                j = (jPanel - 1)*npt + (1: npt);
-                M0(itarg, j) = Kernel(alpha, z(j), z(itarg), Nz(j))...
-                                   .*ds(j).*w;
-            end
+                            j = (jPanel - 1)*npt + (1: npt);
+                            M0((iBody-1)*npts + itarg, ...
+                               (jBody-1)*npts + j) ...
+                              = Kernel(alpha, z(j, jBody), ...
+                                       z(itarg, jBody), Nz(j, jBody))...
+                                       .*ds(j, jBody).*w;
+                        end
 %
 % Construct M^*
 %    Diagonal Block
-            jPanel = iPanel;
-%        regular quadrature
-            j = (jPanel - 1)*npt + (1: npt);
-            M0(itarg, j) = (Kernel(alpha, z(j), z(itarg), Nz(j))...
-                               .*ds(j).*w)';
-            M0(itarg, itarg) = G0Diag(index);
+                        jPanel = iPanel;
+%%        regular quadrature
+                        j = (jPanel - 1)*npt + (1: npt);
+                        M0((iBody-1)*npts + itarg, (jBody-1)*npts + j) ...
+                            = (Kernel(alpha, z(j, jBody), ...
+                                      z(itarg, iBody), Nz(j, jBody))...
+                                      .*ds(j, jBody).*w)';
+                        M0((iBody-1)*npts + itarg, ...
+                           (iBody-1)*npts + itarg) = G0Diag(index);
             
 %       correction            
-            wCorrect = wCorrectDiag(index, :)';
-            wCorrect(index) = wCorrectDiag(index, index) ...
-                                  + log(0.5*ds(i(index))*dt);
-            GL = GLog(alpha, z(j), z(itarg), Nz(j));
-            MS(itarg, j) = (GL.*ds(j).*w.*wCorrect)';
-            MS(itarg, itarg) = 0;
+                        wCorrect = wCorrectDiag(index, :)';
+                        wCorrect(index) = wCorrectDiag(index, index) ...
+                                  + log(0.5*ds(i(index), iBody)*dt);
+                        GL = GLog(alpha, z(j, jBody), z(itarg, iBody), ...
+                                  Nz(j, jBody));
+                        MS((iBody-1)*npts + itarg, ...
+                           (jBody-1)*npts + j) ...
+                                  = (GL.*ds(j, jBody).*w.*wCorrect)';
+                        MS((iBody-1)*npts + itarg, ...
+                           (iBody-1)*npts + itarg) = 0;
             
 %       
 %    Sub Diagonal Block
-            jPanel = iPm1;
-            ta = (jPanel-1)*dt;
-            tb = ta + dt;
-            tmid = 0.5*(ta + tb);
-            if jPanel == nPanel
-                tmid = tmid - 2*pi;
-            end
+                        jPanel = iPm1;
+                        ta = (jPanel-1)*dt;
+                        tb = ta + dt;
+                        tmid = 0.5*(ta + tb);
+                        if jPanel == nPanel
+                            tmid = tmid - 2*pi;
+                        end
             
 %        regular quadrature
-            j = (jPanel - 1)*npt + (1: npt);
-            M0(itarg, j) = (Kernel(alpha, z(j), z(itarg), Nz(j))...
-                               .*ds(j).*w)';
+                        j = (jPanel - 1)*npt + (1: npt);
+                        M0((iBody-1)*npts + itarg, (jBody-1)*npts + j) ...
+                            = (Kernel(alpha, z(j, jBody), ...
+                                      z(itarg, iBody), Nz(j, jBody))...
+                                      .*ds(j, jBody).*w)';
             
 %        correction            
-            if abs(t(itarg) - tmid) < ActivateProdFac*dt
-                GL = GLog(alpha, z(j), z(itarg), Nz(j));
-                MS(itarg, j) = (GL.*ds(j).*w.*wCorrectSub(index,:)')';
-            end
+                        if abs(t(itarg) - tmid) < ActivateProdFac*dt
+                            GL = GLog(alpha, z(j, jBody), ...
+                                      z(itarg, iBody), Nz(j, jBody));
+                            MS((iBody-1)*npts + itarg, ...
+                               (jBody-1)*npts + j) ...
+                               = (GL.*ds(j, jBody)...
+                                    .*w.*wCorrectSub(index,:)')';
+                        end
 %    Super Diagonal Block
-            jPanel = iPp1;
-            ta = (jPanel-1)*dt;
-            tb = ta + dt;
-            tmid = 0.5*(ta + tb);
-            if jPanel == 1
-                tmid = tmid + 2*pi;
-            end
+                        jPanel = iPp1;
+                        ta = (jPanel-1)*dt;
+                        tb = ta + dt;
+                        tmid = 0.5*(ta + tb);
+                        if jPanel == 1
+                            tmid = tmid + 2*pi;
+                        end
             
 %        regular quadrature
-            j = (jPanel - 1)*npt + (1: npt);
-            M0(itarg, j) = (Kernel(alpha, z(j), z(itarg), Nz(j)) ...
-                               .*ds(j).*w)';
+                        j = (jPanel - 1)*npt + (1: npt);
+                        M0((iBody-1)*npts + itarg, ...
+                           (jBody-1)*npts + j) ...
+                              = (Kernel(alpha, z(j, jBody), ...
+                                        z(itarg, iBody), Nz(j, jBody)) ...
+                                        .*ds(j, jBody).*w)';
             
 %        correction            
-            if abs(t(itarg) - tmid) < ActivateProdFac*dt
-                GL = GLog(alpha, z(j), z(itarg), Nz(j));
-                MS(itarg, j) = (GL.*ds(j).*w.*wCorrectSup(index,:)')';
+                        if abs(t(itarg) - tmid) < ActivateProdFac*dt
+                            GL = GLog(alpha, z(j, jBody), ...
+                                      z(itarg, iBody), Nz(j, jBody));
+                            MS((iBody-1)*npts + itarg, ...
+                               (jBody-1)*npts + j) ...
+                             = (GL.*ds(j, jBody).*w...
+                                  .*wCorrectSup(index,:)')';
+                        end
+                    end
+               else
+                    for index = 1: npt
+                        itarg = (iBody-1)*(iPanel - 1)*npt + index;
+                        for jPanel = 1: nPanel
+                            j = (jPanel - 1)*npt + (1: npt);
+                            M0((iBody-1)*npts + itarg, ...
+                               (jBody-1)*npts + j) ...
+                              = (Kernel(alpha, z(j, jBody), ...
+                                        z(itarg, iBody), Nz(j, jBody)) ...
+                                        .*ds(j, jBody).*w)';
+                        end
+                    end
+               end
             end
         end
-        
-        
     end
     
-    DLP = eye(npts) + M0 + MS;
+    DLP = eye(npts*nBody) + M0 + MS;
 
 end
 

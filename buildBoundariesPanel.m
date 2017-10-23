@@ -4,7 +4,7 @@ function [t, z, dz, d2z, zP, ds, Nz, kappa] ...
 %  Constructs parametrized curves; it is assumed the parametrization is
 %  on [0, 2 pi].
 %
-% NOTE: for simply-connected domains only for now!
+% NOTE: bounded domains only for now!
 % 
 % INPUTS:
 %   nPanel:
@@ -60,29 +60,42 @@ function [t, z, dz, d2z, zP, ds, Nz, kappa] ...
 %
 %    [~, nBody] = size(curves);  
 
+    nBody = length(curves);
     nPoints = nPanel*npt;
     dt = 2*pi/nPanel;
     
-    t = zeros(npt, nPanel);
+    z = zeros(nPoints, nBody);
+    dz = zeros(nPoints, nBody);
+    d2z = zeros(nPoints, nBody);
+    zP = zeros(nPanel+1, nBody);
+    t = zeros(nPoints, nBody);
     
-    z = zeros(npt, nPanel);
-    dz = zeros(npt, nPanel);
-    d2z = zeros(npt, nPanel);
-    zP = zeros(nPanel+1, 1);
+    tk = zeros(npt, nPanel);
+    zk = zeros(npt, nPanel);
+    dzk = zeros(npt, nPanel);
+    d2zk = zeros(npt, nPanel);
 
-    for iPanel = 1: nPanel
-        ta = (iPanel-1)*dt;
-        t(:, iPanel) = ta + 0.5*dt*(T + 1);
-        [z(:, iPanel), dz(:, iPanel), d2z(:, iPanel)] ...
-                                    = buildCurve(t(:, iPanel), curves);
-        zP(iPanel) = buildCurve(ta, curves);
-    end
-    zP(nPanel+1) = zP(1);
-    t = reshape(t, nPoints, []);
-    z = reshape(z, nPoints, []);
-    dz = reshape(dz, nPoints, []);
-    d2z = reshape(d2z, nPoints, []);
+    for kBody = 1: nBody
+
+        for iPanel = 1: nPanel
+            ta = (iPanel-1)*dt;
+            tk(:, iPanel) = ta + 0.5*dt*(T + 1);
+            [zk(:, iPanel), dzk(:, iPanel), d2zk(:, iPanel)] ...
+                            = buildCurve(tk(:, iPanel), curves(kBody));
+            zP(iPanel, kBody) = buildCurve(ta, curves(kBody));
+        end
+        
+        zP(nPanel+1, kBody) = zP(1, kBody);
+        t(:, kBody) = reshape(tk, nPoints, []);
+        z(:, kBody) = reshape(zk, nPoints, []);
+        if kBody == 1
+            dz(:, kBody) = reshape(dzk, nPoints, []);
+        else
+            dz(:, kBody) = -reshape(dzk, nPoints, []);
+        end
+        d2z(:, kBody) = reshape(d2zk, nPoints, []);
     
+    end
     ds = abs(dz);
     Nz = -1i*dz./abs(dz);                   % outward normal
     kappa = -imag(dz.*conj(d2z))./ds.^3;    % curvature

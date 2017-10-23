@@ -1,0 +1,32 @@
+\begin{frame}
+\begin{columns}
+\hspace{-1in}
+\begin{column}{0.2\textwidth}
+\begin{center}
+\includegraphics[height=1.5in]{spherical.png}
+\end{center}
+\end{column}
+\hspace{-1in}
+\begin{column}{0.2\textwidth}
+\begin{center}
+\[
+x(\phi,\theta) = 
+ \left[ \begin{array}{c}
+    \cos\phi \sin\theta \\ \sin\phi \sin\theta \\ \cos\theta \end{array} \right]
+\]
+\end{center}
+\end{column}
+\end{columns}
+
+\vspace{.25in}
+Laplace-Beltrami in spherical coords:
+\begin{align*}
+\Delta_S u(x) \equiv &  \, \mbox{div}_S \nabla_S u(x) \\
+         = & \left[  \frac{1}{\sin^2 \theta} \frac{\partial^2 \, }{\partial\phi^2} 
+             + \frac{1}{\sin\theta} \frac{\partial \,}{\partial \theta} \left( \sin\theta \frac{\partial \,}{\partial \theta} \right)
+     \right] u      
+\end{align*}
+\end{frame}
+
+
+

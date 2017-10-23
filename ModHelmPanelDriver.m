@@ -4,7 +4,7 @@
 %     u - alpha^2 \Delta u = 0 in D
 %     u = f on \Gamma,
 %
-% where D is a bounded, simply-connected domain with smooth boundary.
+% where D is a bounded, multiply-connected domain with smooth boundary.
 %
 % Quadrature is Gauss-Legendre via 
 % Helsing & Holst, Variants of an explicit kernel-split panel-based
@@ -31,7 +31,7 @@
 %% PDE
 %
 
-    alpha = 1;
+    alpha = 1.;
     uExact = @(r, alpha) besselk(0, r/alpha);
     zSing = 1.5 + 1.5*1i;   % Location of Singularity; 
                             % Used to generate exact solution
@@ -40,10 +40,9 @@
    
 %% Construct Domain
 %
-    nPanel = 100;    % Number of Panels
+    nPanel = 80;    % Number of Panels
     npt = 16;       % Number of nodes; should be 16 or 32
     
-    nPoints = npt * nPanel;
     dt = 2*pi/nPanel;
     
     [T, W] = GaussLegendre(npt);    
@@ -64,32 +63,43 @@
 %           for a star2: [ [k]; [ak] ]
 
     curveParam(1) = struct('shape', 'star', 'parameters', [1 .2 5], ...
+                           'tiltAngle', 0, 'centre', 0);
+%     curveParam(1) = struct('shape', 'circle', 'parameters', [1 ], ...
+%                            'tiltAngle', 0, 'centre', 0);
+    curveParam(2) = struct('shape', 'circle', 'parameters', [.3], ...
                         'tiltAngle', 0, 'centre', 0);
-
+                    
+    nBody = length(curveParam);
+    nPoints = npt * nPanel * nBody;
+    
     isUnbounded = false;
     [t, z, dz, d2z, zP, ds, Nz, kappa] ...
         = buildBoundariesPanel(nPanel, npt, T, curveParam, isUnbounded);
     
 %% Display Info 
     disp(['Number of Panels: ', num2str(nPanel)])
+    disp(['Number of Bodies: ', num2str(nBody)])
     disp(['Number of Nodes: ', num2str(npt)])
     disp(['Total Unknowns: ', num2str(nPoints)])
-    disp(['Domain Shape: ', curveParam.shape])
+    disp(['Domain Shape: ', curveParam(:).shape])
                
 % 
 % Plot domain
     figure()
     subplot(1, 2, 1)
         hold on
-        plot(real(z), imag(z), 'k', 'LineWidth', 2)
-        hold on
-        plot(real(zP), imag(zP), 'r*')
+        for kBody = 1: nBody
+            plot(real(z(:, kBody)), imag(z(:, kBody)), 'k', 'LineWidth', 2)
+            plot(real(zP(:, kBody)), imag(zP(:, kBody)), 'r*')
+        end
         xlabel('x')
         ylabel('y')
         title('Domain')
     subplot(1, 2, 2)
         hold on
-        plot(kappa, 'k', 'LineWidth', 2)
+        for kBody = 1: nBody
+            plot(kappa(:, kBody), 'k', 'LineWidth', 2)
+        end
         xlabel('i')
         ylabel('\kappa')
         title('Curvature') 
@@ -97,9 +107,9 @@
 %% Build grid
 % Embed in Box and add a uniform grid
 %
-    M = 200;    % Build MxM grid
+    M = 100;    % Build MxM grid
     [xBox, yBox, igrid, LGammaP] ...
-                 = buildBoxPanel(M, nPanel, npt, w, z, dz, ds, kappa);
+              = buildBoxPanel(M, nPanel, npt, nBody, w, z, dz, ds, kappa);
     disp(['Arc Length of Boundary = ', num2str(sum(LGammaP))])
     disp(' ')
 
@@ -116,15 +126,19 @@
 % Build system matrix and solve integral equation
     
     
-    [DLP, ~, ~] = dlpYukawaPanelMatrix(alpha, nPanel, npt, t, T, w, W,...
-                                       z, ds, Nz, kappa);
+    [DLP, M0, MS] = dlpYukawaPanelMatrix(alpha, nPanel, npt, nBody,...
+                                       t, T, w, W, z, ds, Nz, kappa);
                              
     f = uExact(abs(z - zSing), alpha);
     f = -2*alpha^2*f;
-    rho = DLP\f;
+    rho = DLP\reshape(f, [], 1);
+    rho = reshape(rho, [], nBody);
     
     figure()
-    plot(t, rho)
+    hold on
+    for kBody = 1: nBody
+        plot(t, rho(:, kBody))
+    end
     xlabel('t')
     ylabel('\rho')
     title('Layer Potential Density')
@@ -134,14 +148,20 @@
 % Check solution at distant target points; ztarg should be inside domain
 % well away from boundary
 
-    ztarg = 0.25*exp(1i*(0:15)*2*pi/16);
+    ztarg = 0.6 + 0.05*exp(1i*(0:15)*2*pi/16);
+    figure(1)
+    subplot(1, 2, 1)
+        plot(real(ztarg), imag(ztarg), 'bo')
+    
     uE = uExact(abs(ztarg - zSing), alpha);
+    uMax = max(abs(uE));
     uCalc = zeros(size(ztarg));
     for i = 1: length(ztarg)
-        uCalc(i) = dlpYukawaPanelEval(alpha, nPanel, npt, w, z, Nz, ds, ...
-                                      rho, ztarg(i));
+        uCalc(i) = dlpYukawaPanelEval(alpha, nPanel, npt, nBody, w, z, ...
+                                      Nz, ds, rho, ztarg(i));
     end
-    disp(['Error on sample points = ', num2str(max(abs(uCalc - uE)))])
+    disp(['Relative error on sample points = ', ...
+           num2str(max(abs(uCalc - uE)/uMax))])
     disp(' ')
     
 %% Evaluate Solution on Grid 
@@ -151,14 +171,14 @@
     uBox = zeros(size(zBox));
     for index = inDomain'
         zTarg = zBox(index);
-        uBox(index) = dlpYukawaPanelEval(alpha, nPanel, npt, w, z, Nz, ...
-                                         ds, rho, zTarg);
+        uBox(index) = dlpYukawaPanelEval(alpha, nPanel, npt, nBody, w, ...
+                                         z, Nz, ds, rho, zTarg);
     end
 
 %
 % Evaluate at near singular grid points
     
-    NearSingular = find(igrid==2);
+    NearSingular = find(igrid > 1);
     nPtInDomain = numel(inDomain) + numel(NearSingular);
     disp(['Number of grid points in domain = ', ...
           num2str(nPtInDomain)])
@@ -167,8 +187,9 @@
         zTarg = zBox(index);
         zmin = min(abs(z - zTarg));
         zDisMin = min(zDisMin, zmin);
-        uBox(index) = dlpYukawaPanelNSEval(alpha, nPanel, npt, w,   ...
-                            z, zP, LGammaP, Nz, dz, ds, rho, zTarg);
+        uBox(index) = dlpYukawaPanelNSEval(alpha, nPanel, npt, nBody, ...
+                            w, z, zP, LGammaP, Nz, dz, ds, rho, zTarg, ...
+                            igrid(index)-1);
     end
     disp(['Minimum Distance between grid point and boundary: ', ...
           num2str(zDisMin)])
